@@ -65,6 +65,7 @@ struct responseHeader{
 
 typedef struct requestHeader{
 	char *method;
+	char *file_path;
 	char *file;
 	char *http_v;
 	struct Header *headers;
@@ -156,48 +157,81 @@ struct requestHeader *parse_request(const char *raw){
 		req->method = "HEAD";
 	else
 		req->method = "UNSUPPORTED";
-	raw += method_len+2;
+	raw += method_len+1;
 
 	
 	//http request url
 	size_t file_len = strcspn(raw, " ");
-	req->file = malloc(file_len + 1);
+	
+	req->file_path = malloc(file_len+1);
+	if(!req->file_path){
+		free_request(req);
+		return NULL;
+	}
+	memcpy(req->file_path,raw,file_len);
+	//req->file_path[file_len]='\0';
+	raw += 1;
+
+
+	req->file = malloc(file_len);
 	//printf("file mem\n");
 
 	if(!req->file){
 		free_request(req);
 		return NULL;
 	}
-	memcpy(req->file,raw,file_len);
-	req->file[file_len]='\0';
-	raw += file_len + 1;
-	
+	memcpy(req->file,raw,file_len-1);
+	req->file[file_len-1]='\0';
+	raw += file_len ;
+	printf("file %s\n",req->file);
 
 	// content of requested file 
 	res->status_code = malloc(4);
-	res->status_msg = malloc(10);
-	printf("%s\n",req->file);
+	if(!res->status_code){
+		free_response(res);
+		return NULL;
+	}res->status_msg = malloc(20);
+	if(!res->status_msg){
+		free_response(res);
+		return NULL;
+	}
+	res->connection = malloc(20);
+	if(!res->connection){
+		free_response(res);
+		return NULL;
+	}
+//	printf("file path:%s\n",req->file_path);
 	fptr = fopen(req->file,"r+");
 	if(fptr == NULL){
+		res->body = malloc(30);
+		res->body = "Cannot open file";
 		printf("Cannot open file\n");
-		//return NULL;
 		res->status_code = "404";
 		res->status_msg = "Not Found";
+		res->content_len = strlen("Cannot open file");
+		
+		//return NULL;
+	
+	//printf("%s%s",res->status_code,res->status_msg);
 	}
 
 	f_char = malloc(2);
 	
 	char *type;
+
 	//type = req_file;
 	//char file_type[10];
 	//size_t type_len = strcspn(req->file,".");
-	type = strchr(req->file,'.');
-	
+	//type = malloc(10);
+
+	type = strchr(req->file_path,'.');
+	printf("209");	
 	res->content_type = malloc(strlen(type)+1);
 	if(!res->content_type){
-		free_request(req);
+		free_response(res);
 		return NULL;
 	}
+	printf("here");
 	//memcpy(file_type,req->file,type_len);
 	//strcat(res->contetn_type,"")
 	if(strcmp(type,".html")==0)
@@ -219,9 +253,10 @@ struct requestHeader *parse_request(const char *raw){
 	//printf("%s",res->body);
 	res->status_code = "200";
 	res->status_msg = "OK";
-	}
 	res->content_len = n;	
+	}
 	res->connection = "Closed";
+	//printf("%s%s",res->status_code,res->status_msg);
 
 	//struct stat filestat;
 	//stat(req->file,&filestat);
@@ -243,7 +278,7 @@ struct requestHeader *parse_request(const char *raw){
 	//http response version
 	res->http_v = malloc(ver_len+1);
 	if(!res->http_v){
-		free_request(req);
+		free_response(res);
 		return NULL;
 	}
 	memcpy(res->http_v,req->http_v,ver_len);
@@ -379,7 +414,17 @@ struct http_headers *htpp_header(const char *buffer){
 	struct requestHeader *req = parse_request()
 }*/
 
-
+void free_response(struct responseHeader *res){
+	if(res){
+		free(res->http_v);
+		free(res->status_code);
+		free(res->status_msg);
+		free(res->content_type);
+		free(res->connection);
+		free(res->body);
+		free(res);
+	}
+}
 void free_header(struct Header *h){
 	if(h){
 		free(h->name);
@@ -391,8 +436,10 @@ void free_header(struct Header *h){
 
 void free_request(struct requestHeader *req){
 	free(req->file);
+	free(req->file_path);
 	free(req->http_v);
 	free_header(req->headers);
+	free_response(req->res);
 	free(req->body);
 	free(req);
 }
@@ -421,11 +468,11 @@ int main(int argc, char *argv[])
 	struct sockaddr_in server_addr, cli_addr;
 	int n;
 	struct kevent event[5],change_event[5];
-	if(argc < 2){
+/*	if(argc < 2){
 		perror("Port number was not entered\n");
 		exit(1);
 	}
-	
+*/	
 	sockfd_tcp = socket(AF_INET,SOCK_STREAM,0);
 	if(sockfd_tcp < 0){
 		perror("ERROR creating socket");
@@ -438,8 +485,8 @@ int main(int argc, char *argv[])
 	}*/
 	//printf("Socket created\n");
 	bzero((char *) &server_addr, sizeof(server_addr));
-	portno = atoi( argv[1]);
-//	portno = 6789;
+//	portno = atoi( argv[1]);
+	portno = 7010;
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	server_addr.sin_port = htons(portno);
@@ -502,7 +549,7 @@ int main(int argc, char *argv[])
 				struct requestHeader *req = parse_request(buffer);
 				if(req){
 					puts("Message body:\n");
-					printf("%s %s %s\n",req->method,req->file,req->http_v);
+					printf("%s %s %s\n",req->method,req->file_path,req->http_v);
 					struct Header *h;
 					for(h=req->headers;h;h=h->next){
 					printf("%s: %s\n",h->name,h->value);
@@ -512,7 +559,7 @@ int main(int argc, char *argv[])
 					struct responseHeader *res;
 					res = req->res;
 				//	stpcpy(stpcpy(stpcpy(stpcpy(stpcpy(stpcpy(stpcpy(httpHeader,res->http_v)," "),res->status_code)," "),res->status_msg),EOL),res->body);
-					sprintf(httpHeader,"%s %s %s\nContent-Type: %s\nContent-Length: %d\nConnection: %s\r\n%s",res->http_v,res->status_code,res->status_msg,res->content_type,res->content_len,res->connection,res->body);
+					sprintf(httpHeader,"%s %s %s\r\nContent-Type: %s\r\nContent-Length: %d\r\nConnection: %s\r\n\r\n%s",res->http_v,res->status_code,res->status_msg,res->content_type,res->content_len,res->connection,res->body);
 				}
 			
 
