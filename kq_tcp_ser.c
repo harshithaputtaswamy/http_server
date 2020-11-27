@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 					exit(1);
 				}
 					
-				printf("HTTP/1.1 200 OK\n\nThe message from client is :%s\n",buffer);
+				printf("The message from client is :%s\n",buffer);
 					
 				n = write(newsocket,"Recieved your message\n",40);
 				if(n<0){
