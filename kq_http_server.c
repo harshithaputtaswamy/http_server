@@ -58,6 +58,16 @@ const char* parse_request(const char *raw){
 	char *f_char;
 	char *res;
 	char *method;
+	char *file;
+	char *file_path;
+	char *http_v;
+	int content_len;
+	char *status_code;
+	char *status_msg;
+	char *body;
+	char *content_type;
+	char *connection;
+
 
 	res = malloc(800);
 
@@ -76,27 +86,22 @@ const char* parse_request(const char *raw){
 	//http request url
 	size_t file_len = strcspn(raw, " ");
 //	printf("%d: ",file_len);
-	char *file;
-	char *file_path;
-
-	file = malloc(file_len);
-	file_path = malloc(file_len-1);
+	file = malloc(file_len-1);
+	file_path = malloc(file_len);
 
 	memcpy(file_path,raw,file_len);
+	file_path[file_len] = '\0';
 //	printf("%s",file_path);
 
 	raw += 1;
 	
 	memcpy(file,raw,file_len-1);
 	file[file_len-1]='\0';
+//	printf("\n%s",file);
 	raw += file_len ;
-//	printf("file %s\n",file);
 	
-//	printf("file\n");
-
 	//http request version
 	size_t ver_len = strcspn(raw,EOL);
-	char *http_v;
 	http_v = malloc(ver_len);
 	//printf("version mem\n");
 
@@ -104,41 +109,24 @@ const char* parse_request(const char *raw){
 	http_v[ver_len]='\0';
 	raw += ver_len +2;
 	
-	//http response version
-
-//	memcpy(res,http_v,ver_len);
-//	res += ver_len;	
-//	printf("%s",res);
 
 	//file content
-	int content_len;
-	char *status_code;
-	char *status_msg;
-	char *body;	
+	
 //	printf("file path:%s\n",file_path);
 	fptr = fopen(file,"r+");
 //	printf("file failed");
 	if(fptr == NULL){
 		//char body[1000];
 		body = "Cannot open file\r\n";
-		//memcpy(body,msg,strlen(msg));
-		//body[strlen(msg)]='\0';
-//		printf("Cannot open file\n");
-//		printf("%s",body);
+
 		status_code = malloc(4);
 		memcpy(status_code," 404",4);
 		status_code[4]='\0';
-//		printf("%s",status_code);
-		
 		status_msg = malloc(13);
 		memcpy(status_msg," Not Found\r\n",12);
-		status_msg[12]='\0';	
-//		printf("%s",status_msg);
-//		printf("some\n");		
-		//content_len = 18;
-		//printf("%d",content_len);
-//		printf("len - 18");
-		
+		status_msg[12]='\0';		
+		content_len = 16;
+	
 	}
 	
 	char *type;
@@ -146,11 +134,17 @@ const char* parse_request(const char *raw){
 
 	type = strchr(file_path,'.');
 	//printf("209");	
-	char *content_type;
+
 //	char *body;
 
-	if(strcmp(type,".html")==0)
+	if(strcmp(type,".html") == 0)
 		content_type="text/html\r\n";
+	else if(strcmp(type, ".jpeg") == 0)
+		content_type = "image/jpeg\r\n";
+	else if(strcmp(type, ".txt") == 0)
+		content_type = "text/plain\r\n";
+	else if(strcmp(type, ".ico") == 0)
+		content_type = "image/x-icon\r\n";
 	int type_len = strlen(content_type);
 	//content_type[type_len]='\0';
 //	printf("\ntype : %s",content_type);
@@ -185,12 +179,13 @@ const char* parse_request(const char *raw){
 		content_len = n-2;	
 	}
 
-	free(f_char);
-	char *connection;
+	free(f_char);	
 
-	connection = malloc(9);
-	memcpy(connection,"Closed\r\n",8);
-	connection[8]='\0';
+	connection = "Closed\r\n";
+//	connection = malloc(9);
+//	memcpy(connection,"Closed\r\n",8);
+//	connection[8]='\0';
+//
 	//printf("Len %d\n",content_len);
 
 	//printf("output being p\n\n");
@@ -221,15 +216,15 @@ const char* parse_request(const char *raw){
 	free(http_v);
 	free(status_code);
 	free(status_msg);
-	free(connection);
-	
+//	free(connection);
+	free(file_path);
+	free(file);
+//	free(body);
+
 	//printf("%s",res);
 	return res;
-	
 
 }
-
-
 
 
 int main(int argc, char *argv[])
@@ -253,7 +248,7 @@ int main(int argc, char *argv[])
 	}
 	bzero((char *) &server_addr, sizeof(server_addr));
 	portno = atoi( argv[1]);
-//	portno = 5050;	
+//	portno = 8200;	
 	server_addr.sin_family = AF_INET;
 	server_addr.sin_addr.s_addr = INADDR_ANY;
 	server_addr.sin_port = htons(portno);
@@ -281,7 +276,7 @@ int main(int argc, char *argv[])
 			perror("kevent");
 			exit(1);
 		}
-		printf("%d new_ev\n", new_ev);
+	//	printf("%d new_ev\n", new_ev);
 		for(int i = 0; new_ev > i; i++){
 
 			//printf("%d",i);
@@ -324,7 +319,7 @@ int main(int argc, char *argv[])
 				EV_SET(change_event,eventfd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
 				kevent(kq,change_event,1,NULL,0,NULL);
 
-				if(event[i].filter & EVFILT_WRITE) printf("WRITE\n");
+			
 				httpHeader = parse_request(buffer);
 
 				n = write(eventfd,httpHeader,strlen(httpHeader));
@@ -334,11 +329,8 @@ int main(int argc, char *argv[])
 				}
 				printf("Message sent is:\n%s\n",httpHeader);
 				
-				if(event[i].filter & EVFILT_WRITE){
-					printf("WRITE\n");
-		
-				}
-				EV_SET(change_event, eventfd, EVFILT_WRITE,EV_DELETE,0,0,NULL);
+
+				EV_SET(change_event, newsocket, EVFILT_WRITE,EV_DELETE,0,0,NULL);
 				kevent(kq, change_event,1,NULL,0,NULL);
 		
 				
