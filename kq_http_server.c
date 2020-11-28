@@ -13,7 +13,8 @@
 
 
 const char* parse_request(const char *raw);
-
+void stringcpy(char*, const char*, char);
+void stringcat(char*, char*);
 
 void hexDump(const char *buf, const void *addr, const int len){
 	int i;
@@ -53,13 +54,25 @@ void hexDump(const char *buf, const void *addr, const int len){
 	printf("  %s\n",buff);
 }
 
+
+void stringcpy(char *dest, const char *src, char c){
+	while(*src != c)
+		*dest++ = *src++;
+	*dest = '\0';
+	return;
+}
+
+void stringcat(char *dest, char *src){
+	while(*src){
+		*dest++ = *src++;
+	}
+	return;
+}
+
 const char* parse_request(const char *raw){
 	FILE *fptr;
-	char *f_char;
 	char *res;
-	char *method;
 	char *file;
-	char *file_path;
 	char *http_v;
 	int content_len;
 	char *status_code;
@@ -67,161 +80,82 @@ const char* parse_request(const char *raw){
 	char *body;
 	char *content_type;
 	char *connection;
+//	char *result;
 
-
-	res = malloc(800);
+	res = malloc(1024);
 
 	//http method
 	size_t method_len= strcspn(raw," ");
-	if(memcmp(raw, "GET", strlen("GET"))==0)
-		method = "GET";
-	else if(memcmp(raw, "HEAD", strlen("HEAD"))==0)
-		method = "HEAD";
-	else
-		method = "UNSUPPORTED";
-	raw += method_len+1;
-	
-//	printf("method : %s\n",method);
+
+	char method[method_len];
+	strncpy(method,raw,method_len);
+
+	raw += method_len+2;
+//	printf("%d raw",raw);
 	
 	//http request url
 	size_t file_len = strcspn(raw, " ");
-//	printf("%d: ",file_len);
-	file = malloc(file_len-1);
-	file_path = malloc(file_len);
 
-	memcpy(file_path,raw,file_len);
-	file_path[file_len] = '\0';
-//	printf("%s",file_path);
-
-	raw += 1;
-	
-	memcpy(file,raw,file_len-1);
-	file[file_len-1]='\0';
-//	printf("\n%s",file);
-	raw += file_len ;
+//	raw += 1;
+	stringcpy(file,raw,' ');	
+//	printf("%s\n",file);
+	raw += file_len + 1;
 	
 	//http request version
 	size_t ver_len = strcspn(raw,EOL);
-	http_v = malloc(ver_len);
-	//printf("version mem\n");
 
-	memcpy(http_v,raw,ver_len);
-	http_v[ver_len]='\0';
+	stringcpy(http_v, raw, '\r' );	
+//	http_v = "HTTP/1.1";
+//	printf("%s\n",http_v);	
+//	stringcat(result, http_v);
 	raw += ver_len +2;
-	
 
-	//file content
-	
-//	printf("file path:%s\n",file_path);
+	//file content	
+
 	fptr = fopen(file,"r+");
-//	printf("file failed");
-	if(fptr == NULL){
-		//char body[1000];
-		body = "Cannot open file\r\n";
 
-		status_code = malloc(4);
-		memcpy(status_code," 404",4);
-		status_code[4]='\0';
-		status_msg = malloc(13);
-		memcpy(status_msg," Not Found\r\n",12);
-		status_msg[12]='\0';		
+	if(fptr == NULL){
+		body = "Cannot open file\r\n";
+		status_code = " 404";
+		status_msg = " Not Found\r\n";		
 		content_len = 16;
-	
 	}
 	
-	char *type;
 
-
-	type = strchr(file_path,'.');
-	//printf("209");	
-
-//	char *body;
-
-	if(strcmp(type,".html") == 0)
+	const char *type = strrchr(file,'.');
+//	printf("%s\n",type);
+	if(type && ".html")
 		content_type="text/html\r\n";
-	else if(strcmp(type, ".jpeg") == 0)
+	else if(type && ".jpeg")
 		content_type = "image/jpeg\r\n";
-	else if(strcmp(type, ".txt") == 0)
+	else if(type && ".txt")
 		content_type = "text/plain\r\n";
-	else if(strcmp(type, ".ico") == 0)
+	else if(type && ".ico")
 		content_type = "image/x-icon\r\n";
-	int type_len = strlen(content_type);
-	//content_type[type_len]='\0';
-//	printf("\ntype : %s",content_type);
-	
-	f_char = malloc(2);
 
+	
 	int n = 0;
 	if(fptr != NULL){
-//		char *body;
-		n=2;
-		body = malloc(n);	
+		body = malloc(1024);	
 		do{
-			f_char[0]=fgetc(fptr);
+			body[n] = fgetc(fptr);
 			if(feof(fptr))
 				break;
-			n+=1;
-			body = realloc(body,n);
-			strcat(body,f_char);
-	}
-		while(1);
-		int body_len = strlen(body);
-		body[body_len]='\0';
+			n+=1;		
+		}while(1);
 	
-		status_code = malloc(4);
-		memcpy(status_code," 200",4);
-		status_code[4]='\0';
-	//	puts(status_code);
-
-		status_msg = malloc(5);
-		memcpy(status_msg," OK\r\n",5);
-		//status_msg[6]='\0';
-		content_len = n-2;	
+		body[n]='\0';
+		status_code = " 200";
+		status_msg = " OK\r\n";
+		content_len = n;	
 	}
 
-	free(f_char);	
+//	stringcat(result,status_code);
+//	stringcat(result, status_msg);
 
 	connection = "Closed\r\n";
-//	connection = malloc(9);
-//	memcpy(connection,"Closed\r\n",8);
-//	connection[8]='\0';
-//
-	//printf("Len %d\n",content_len);
-
-	//printf("output being p\n\n");
-
-/*	printf("%s\n",res);
-	strcat(res,status_code);
-	printf("%s\n",res);
-	strcat(res,status_msg);
-	//strcat(res, "HTTP/1.1 200 OK\r\n");
-	printf("%s\n",res);
-//	strcat(res,"Content-Length: 92\r\n");
-*/
-
-
-/*	sprintf(res,"%s%s%sContent-Length: %d",http_v,status_code,status_msg,content_len);
-	printf("%s",res);
-//	sprintf(res,"%d",content_len);
-	strcat(res,"\r\n");
-	strcat(res,"Connection: ");
-	strcat(res,connection);
-	strcat(res,"Content type: ");
-	strcat(res,content_type);
-	strcat(res,body);
-*/
-	//printf("%s",res);
+//	printf("%s",result);
 	sprintf(res,"%s%s%sContent-Type: %sContent-Length: %d\r\nConnection: %s\r\n%s",http_v,status_code,status_msg,content_type,content_len,connection,body);
-
-	free(http_v);
-	free(status_code);
-	free(status_msg);
-//	free(connection);
-	free(file_path);
-	free(file);
-//	free(body);
-
-	//printf("%s",res);
 	return res;
 
 }
@@ -229,7 +163,10 @@ const char* parse_request(const char *raw){
 
 int main(int argc, char *argv[])
 {
-	
+	int E = 1;
+	struct linger sl;
+	sl.l_onoff = 1;
+	sl.l_linger = 0;
 	int sockfd_tcp,sockfd_udp,portno,newsocket,clilen,kq,new_ev;
 	char buffer[1000];
 	const char *httpHeader; 
@@ -246,6 +183,9 @@ int main(int argc, char *argv[])
 		perror("ERROR creating socket");
 		exit(1);
 	}
+	setsockopt(sockfd_tcp,SOL_SOCKET,SO_LINGER,&sl,sizeof(sl));
+	setsockopt(sockfd_tcp,SOL_SOCKET,SO_REUSEADDR,&E,sizeof(int));
+	setsockopt(sockfd_tcp,SOL_SOCKET,SO_REUSEPORT,&E,sizeof(int));
 	bzero((char *) &server_addr, sizeof(server_addr));
 	portno = atoi( argv[1]);
 //	portno = 8200;	
@@ -265,7 +205,7 @@ int main(int argc, char *argv[])
 	EV_SET(change_event, sockfd_tcp, EVFILT_READ, EV_ADD|EV_ENABLE,0,0,0);
 
 		
-	if(kevent(kq,change_event,1,NULL,0,NULL)== -1){
+	if(kevent(kq,change_event,5,NULL,0,NULL)== -1){
 		perror("kevent");
 		exit(1);
 	}
@@ -276,8 +216,8 @@ int main(int argc, char *argv[])
 			perror("kevent");
 			exit(1);
 		}
-	//	printf("%d new_ev\n", new_ev);
-		for(int i = 0; new_ev > i; i++){
+		printf("%d new_ev\n", new_ev);
+		for(int i = 0; i<new_ev; i++){
 
 			//printf("%d",i);
 			int eventfd = event[i].ident;
@@ -287,8 +227,10 @@ int main(int argc, char *argv[])
 				close(eventfd);
 			}
 			
+		//	printf("eventfd : %d\n",eventfd);
 			if(eventfd == sockfd_tcp){
 				
+			//	printf("eventfd : %d\n",eventfd);
 				newsocket = accept(eventfd,(struct sockaddr *) &cli_addr,&clilen);
 			//	printf("accepted\n");
 				if(newsocket < 0){
@@ -300,12 +242,14 @@ int main(int argc, char *argv[])
 					perror("kevent error");
 					exit(1);
 				}
+			//	printf("eventfd : %d\n",eventfd);
 				continue;
 			}
 		
-			else if(event[i].filter & EVFILT_READ){
+			else if(event[i].filter == EVFILT_READ){
 				bzero(buffer,500);
-				n = recv(eventfd,buffer,sizeof(buffer),0);
+				printf("HERE&&&&&&&&&&&%d\n", event[i].ident);
+				n = read(eventfd,buffer,sizeof(buffer));
 				if(n <0){
 					perror("ERROR in reading message\n");
 					exit(1);
@@ -313,13 +257,23 @@ int main(int argc, char *argv[])
 				printf("%s",buffer);
 
 				
-				EV_SET(change_event, event[i].ident,EVFILT_READ, EV_DELETE,0,0,NULL);
+				EV_SET(change_event, event[i].ident,EVFILT_READ, EV_DELETE,0,0,0);
 				kevent(kq,change_event,1,NULL,0,NULL);
 
-				EV_SET(change_event,eventfd, EVFILT_WRITE, EV_ADD, 0, 0, NULL);
+				EV_SET(change_event,eventfd, EVFILT_WRITE, EV_ADD, 0, 0, 0);
 				kevent(kq,change_event,1,NULL,0,NULL);
 
-			
+			/*	httpHeader = parse_request(buffer);
+
+				n = write(eventfd,httpHeader,strlen(httpHeader));
+				if(n<0){
+					perror("ERROR writing to client\n");
+					exit(1);
+				}
+				printf("Message sent is:\n%s\n",httpHeader);
+			*/
+			}
+			else if(event[i].filter == EVFILT_WRITE){
 				httpHeader = parse_request(buffer);
 
 				n = write(eventfd,httpHeader,strlen(httpHeader));
@@ -330,9 +284,9 @@ int main(int argc, char *argv[])
 				printf("Message sent is:\n%s\n",httpHeader);
 				
 
-				EV_SET(change_event, newsocket, EVFILT_WRITE,EV_DELETE,0,0,NULL);
+				EV_SET(change_event, newsocket, EVFILT_WRITE,EV_DELETE,0,0,0);
 				kevent(kq, change_event,1,NULL,0,NULL);
-		
+				close(eventfd);
 				
 
 			}		
